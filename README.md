@@ -1,37 +1,16 @@
-# `react`
+# react-cache
 
-React is a JavaScript library for creating user interfaces.
+A basic cache for React applications. It also serves as a reference for more
+advanced caching implementations.
 
-The `react` package contains only the functionality necessary to define React components. It is typically used together with a React renderer like `react-dom` for the web, or `react-native` for the native environments.
+This package is meant to be used alongside yet-to-be-released, experimental
+React features. It's unlikely to be useful in any other context.
 
-**Note:** by default, React will be in development mode. The development version includes extra warnings about common mistakes, whereas the production version includes extra performance optimizations and strips all error messages. Don't forget to use the [production build](https://reactjs.org/docs/optimizing-performance.html#use-the-production-build) when deploying your application.
+**Do not use in a real application.** We're publishing this early for
+demonstration purposes.
 
-## Usage
+**Use it at your own risk.**
 
-```js
-import { useState } from 'react';
-import { createRoot } from 'react-dom/client';
+# No, Really, It Is Unstable
 
-function Counter() {
-  const [count, setCount] = useState(0);
-  return (
-    <>
-      <h1>{count}</h1>
-      <button onClick={() => setCount(count + 1)}>
-        Increment
-      </button>
-    </>
-  );
-}
-
-const root = createRoot(document.getElementById('root'));
-root.render(<Counter />);
-```
-
-## Documentation
-
-See https://react.dev/
-
-## API
-
-See https://react.dev/reference/react
+The API ~~may~~ will change wildly between versions.
