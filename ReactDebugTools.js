@@ -7,4 +7,6 @@
  * @flow
  */
 
-export * from './src/ReactFlightClient';
+import {inspectHooks, inspectHooksOfFiber} from './ReactDebugHooks';
+
+export {inspectHooks, inspectHooksOfFiber};
