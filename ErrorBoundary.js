@@ -9,7 +9,11 @@ export default class ErrorBoundary extends React.Component {
   }
   render() {
     if (this.state.error) {
-      return <div>Caught an error: {this.state.error.message}</div>;
+      return React.createElement(
+        'div',
+        {},
+        'Caught an error: ' + this.state.error.message
+      );
     }
     return this.props.children;
   }

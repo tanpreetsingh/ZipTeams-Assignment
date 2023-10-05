@@ -3,28 +3,7 @@
 // This is a server to host data-local resources like databases and RSC
 
 const path = require('path');
-
-const register = require('react-server-dom-webpack/node-register');
-register();
-
-const babelRegister = require('@babel/register');
-babelRegister({
-  babelrc: false,
-  ignore: [
-    /\/(build|node_modules)\//,
-    function (file) {
-      if ((path.dirname(file) + '/').startsWith(__dirname + '/')) {
-        // Ignore everything in this folder
-        // because it's a mix of CJS and ESM
-        // and working with raw code is easier.
-        return true;
-      }
-      return false;
-    },
-  ],
-  presets: ['@babel/preset-react'],
-  plugins: ['@babel/transform-modules-commonjs'],
-});
+const url = require('url');
 
 if (typeof fetch === 'undefined') {
   // Patch fetch for earlier Node versions.
@@ -46,60 +25,22 @@ const {readFile} = require('fs').promises;
 
 const React = require('react');
 
-async function renderApp(res, returnValue, formState) {
-  const {renderToPipeableStream} = await import(
-    'react-server-dom-webpack/server'
-  );
-  // const m = require('../src/App.js');
+const moduleBasePath = new URL('../src', url.pathToFileURL(__filename)).href;
+
+async function renderApp(res, returnValue) {
+  const {renderToPipeableStream} = await import('react-server-dom-esm/server');
   const m = await import('../src/App.js');
 
-  let moduleMap;
-  let mainCSSChunks;
-  if (process.env.NODE_ENV === 'development') {
-    // Read the module map from the HMR server in development.
-    moduleMap = await (
-      await fetch('http://localhost:3000/react-client-manifest.json')
-    ).json();
-    mainCSSChunks = (
-      await (
-        await fetch('http://localhost:3000/entrypoint-manifest.json')
-      ).json()
-    ).main.css;
-  } else {
-    // Read the module map from the static build in production.
-    moduleMap = JSON.parse(
-      await readFile(
-        path.resolve(__dirname, `../build/react-client-manifest.json`),
-        'utf8'
-      )
-    );
-    mainCSSChunks = JSON.parse(
-      await readFile(
-        path.resolve(__dirname, `../build/entrypoint-manifest.json`),
-        'utf8'
-      )
-    ).main.css;
-  }
-  const App = m.default.default || m.default;
-  const root = [
-    // Prepend the App's tree with stylesheets required for this entrypoint.
-    mainCSSChunks.map(filename =>
-      React.createElement('link', {
-        rel: 'stylesheet',
-        href: filename,
-        precedence: 'default',
-      })
-    ),
-    React.createElement(App),
-  ];
+  const App = m.default;
+  const root = React.createElement(App);
   // For client-invoked server actions we refresh the tree and return a return value.
-  const payload = {root, returnValue, formState};
-  const {pipe} = renderToPipeableStream(payload, moduleMap);
+  const payload = returnValue ? {returnValue, root} : root;
+  const {pipe} = renderToPipeableStream(payload, moduleBasePath);
   pipe(res);
 }
 
 app.get('/', async function (req, res) {
-  await renderApp(res, null, null);
+  await renderApp(res, null);
 });
 
 app.post('/', bodyParser.text(), async function (req, res) {
@@ -108,8 +49,7 @@ app.post('/', bodyParser.text(), async function (req, res) {
     decodeReply,
     decodeReplyFromBusboy,
     decodeAction,
-    decodeFormState,
-  } = await import('react-server-dom-webpack/server');
+  } = await import('react-server-dom-esm/server');
   const serverReference = req.get('rsc-action');
   if (serverReference) {
     // This is the client-side case
@@ -126,11 +66,11 @@ app.post('/', bodyParser.text(), async function (req, res) {
     if (req.is('multipart/form-data')) {
       // Use busboy to streamingly parse the reply from form-data.
       const bb = busboy({headers: req.headers});
-      const reply = decodeReplyFromBusboy(bb);
+      const reply = decodeReplyFromBusboy(bb, moduleBasePath);
       req.pipe(bb);
       args = await reply;
     } else {
-      args = await decodeReply(req.body);
+      args = await decodeReply(req.body, moduleBasePath);
     }
     const result = action.apply(null, args);
     try {
@@ -140,7 +80,7 @@ app.post('/', bodyParser.text(), async function (req, res) {
       // We handle the error on the client
     }
     // Refresh the client and return the value
-    renderApp(res, result, null);
+    renderApp(res, result);
   } else {
     // This is the progressive enhancement case
     const UndiciRequest = require('undici').Request;
@@ -151,17 +91,15 @@ app.post('/', bodyParser.text(), async function (req, res) {
       duplex: 'half',
     });
     const formData = await fakeRequest.formData();
-    const action = await decodeAction(formData);
+    const action = await decodeAction(formData, moduleBasePath);
     try {
       // Wait for any mutations
-      const result = await action();
-      const formState = decodeFormState(result, formData);
-      renderApp(res, null, formState);
+      await action();
     } catch (x) {
       const {setServerState} = await import('../src/ServerState.js');
       setServerState('Error: ' + x.message);
-      renderApp(res, null, null);
     }
+    renderApp(res, null);
   }
 });
 

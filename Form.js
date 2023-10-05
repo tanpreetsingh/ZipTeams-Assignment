@@ -4,6 +4,8 @@ import * as React from 'react';
 import {useFormStatus} from 'react-dom';
 import ErrorBoundary from './ErrorBoundary.js';
 
+const h = React.createElement;
+
 function Status() {
   const {pending} = useFormStatus();
   return pending ? 'Saving...' : null;
@@ -11,19 +13,33 @@ function Status() {
 
 export default function Form({action, children}) {
   const [isPending, setIsPending] = React.useState(false);
-
-  return (
-    <ErrorBoundary>
-      <form action={action}>
-        <label>
-          Name: <input name="name" />
-        </label>
-        <label>
-          File: <input type="file" name="file" />
-        </label>
-        <button>Say Hi</button>
-        <Status />
-      </form>
-    </ErrorBoundary>
+  return h(
+    ErrorBoundary,
+    null,
+    h(
+      'form',
+      {
+        action: action,
+      },
+      h(
+        'label',
+        {},
+        'Name: ',
+        h('input', {
+          name: 'name',
+        })
+      ),
+      h(
+        'label',
+        {},
+        'File: ',
+        h('input', {
+          type: 'file',
+          name: 'file',
+        })
+      ),
+      h('button', {}, 'Say Hi'),
+      h(Status, {})
+    )
   );
 }

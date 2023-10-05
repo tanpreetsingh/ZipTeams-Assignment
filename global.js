@@ -1,32 +1,9 @@
 'use strict';
 
-// This is a server to host CDN distributed resources like Webpack bundles and SSR
+// This is a server to host CDN distributed resources like module source files and SSR
 
 const path = require('path');
-
-// Do this as the first thing so that any code reading it knows the right env.
-process.env.BABEL_ENV = process.env.NODE_ENV;
-
-const babelRegister = require('@babel/register');
-babelRegister({
-  babelrc: false,
-  ignore: [
-    /\/(build|node_modules)\//,
-    function (file) {
-      if ((path.dirname(file) + '/').startsWith(__dirname + '/')) {
-        // Ignore everything in this folder
-        // because it's a mix of CJS and ESM
-        // and working with raw code is easier.
-        return true;
-      }
-      return false;
-    },
-  ],
-  presets: ['@babel/preset-react'],
-});
-
-// Ensure environment variables are read.
-require('../config/env');
+const url = require('url');
 
 const fs = require('fs').promises;
 const compress = require('compression');
@@ -36,42 +13,13 @@ const http = require('http');
 const React = require('react');
 
 const {renderToPipeableStream} = require('react-dom/server');
-const {createFromNodeStream} = require('react-server-dom-webpack/client');
+const {createFromNodeStream} = require('react-server-dom-esm/client');
+
+const moduleBasePath = new URL('../src', url.pathToFileURL(__filename)).href;
 
 const app = express();
 
 app.use(compress());
-
-if (process.env.NODE_ENV === 'development') {
-  // In development we host the Webpack server for live bundling.
-  const webpack = require('webpack');
-  const webpackMiddleware = require('webpack-dev-middleware');
-  const webpackHotMiddleware = require('webpack-hot-middleware');
-  const paths = require('../config/paths');
-  const configFactory = require('../config/webpack.config');
-  const getClientEnvironment = require('../config/env');
-
-  const env = getClientEnvironment(paths.publicUrlOrPath.slice(0, -1));
-
-  const config = configFactory('development');
-  const protocol = process.env.HTTPS === 'true' ? 'https' : 'http';
-  const appName = require(paths.appPackageJson).name;
-
-  // Create a webpack compiler that is configured with custom messages.
-  const compiler = webpack(config);
-  app.use(
-    webpackMiddleware(compiler, {
-      publicPath: paths.publicUrlOrPath.slice(0, -1),
-      serverSideRender: true,
-      headers: () => {
-        return {
-          'Cache-Control': 'no-store, must-revalidate',
-        };
-      },
-    })
-  );
-  app.use(webpackHotMiddleware(compiler));
-}
 
 function request(options, body) {
   return new Promise((resolve, reject) => {
@@ -115,65 +63,39 @@ app.all('/', async function (req, res, next) {
   if (req.accepts('text/html')) {
     try {
       const rscResponse = await promiseForData;
+      const moduleBaseURL = '/src';
 
-      let virtualFs;
-      let buildPath;
-      if (process.env.NODE_ENV === 'development') {
-        const {devMiddleware} = res.locals.webpack;
-        virtualFs = devMiddleware.outputFileSystem.promises;
-        buildPath = devMiddleware.stats.toJson().outputPath;
-      } else {
-        virtualFs = fs;
-        buildPath = path.join(__dirname, '../build/');
-      }
-      // Read the module map from the virtual file system.
-      const ssrManifest = JSON.parse(
-        await virtualFs.readFile(
-          path.join(buildPath, 'react-ssr-manifest.json'),
-          'utf8'
-        )
-      );
-
-      // Read the entrypoints containing the initial JS to bootstrap everything.
-      // For other pages, the chunks in the RSC payload are enough.
-      const mainJSChunks = JSON.parse(
-        await virtualFs.readFile(
-          path.join(buildPath, 'entrypoint-manifest.json'),
-          'utf8'
-        )
-      ).main.js;
       // For HTML, we're a "client" emulator that runs the client code,
-      // so we start by consuming the RSC payload. This needs a module
-      // map that reverse engineers the client-side path to the SSR path.
+      // so we start by consuming the RSC payload. This needs the local file path
+      // to load the source files from as well as the URL path for preloads.
 
-      // This is a bad hack to set the form state after SSR has started. It works
-      // because we block the root component until we have the form state and
-      // any form that reads it necessarily will come later. It also only works
-      // because the formstate type is an object which may change in the future
-      const lazyFormState = [];
-
-      let cachedResult = null;
-      async function getRootAndFormState() {
-        const {root, formState} = await createFromNodeStream(
-          rscResponse,
-          ssrManifest
-        );
-        // We shouldn't be assuming formState is an object type but at the moment
-        // we have no way of setting the form state from within the render
-        Object.assign(lazyFormState, formState);
-        return root;
-      }
+      let root;
       let Root = () => {
-        if (!cachedResult) {
-          cachedResult = getRootAndFormState();
+        if (root) {
+          return React.use(root);
         }
-        return React.use(cachedResult);
+
+        return React.use(
+          (root = createFromNodeStream(
+            rscResponse,
+            moduleBasePath,
+            moduleBaseURL
+          ))
+        );
       };
       // Render it into HTML by resolving the client components
       res.set('Content-type', 'text/html');
       const {pipe} = renderToPipeableStream(React.createElement(Root), {
-        bootstrapScripts: mainJSChunks,
-        formState: lazyFormState,
+        importMap: {
+          imports: {
+            react: 'https://esm.sh/react@experimental?pin=v124&dev',
+            'react-dom': 'https://esm.sh/react-dom@experimental?pin=v124&dev',
+            'react-dom/': 'https://esm.sh/react-dom@experimental&pin=v124&dev/',
+            'react-server-dom-esm/client':
+              '/node_modules/react-server-dom-esm/esm/react-server-dom-esm-client.browser.development.js',
+          },
+        },
+        bootstrapModules: ['/src/index.js'],
       });
       pipe(res);
     } catch (e) {
@@ -184,6 +106,7 @@ app.all('/', async function (req, res, next) {
   } else {
     try {
       const rscResponse = await promiseForData;
+
       // For other request, we pass-through the RSC payload.
       res.set('Content-type', 'text/x-component');
       rscResponse.on('data', data => {
@@ -201,12 +124,12 @@ app.all('/', async function (req, res, next) {
   }
 });
 
-if (process.env.NODE_ENV === 'development') {
-  app.use(express.static('public'));
-} else {
-  // In production we host the static build output.
-  app.use(express.static('build'));
-}
+app.use(express.static('public'));
+app.use('/src', express.static('src'));
+app.use(
+  '/node_modules/react-server-dom-esm/esm',
+  express.static('node_modules/react-server-dom-esm/esm')
+);
 
 app.listen(3000, () => {
   console.log('Global Fizz/Webpack Server listening on port 3000...');
