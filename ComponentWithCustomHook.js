@@ -15,25 +15,54 @@ function _interopRequireWildcard(obj) { if (obj && obj.__esModule) { return obj;
 
 function Component() {
   const [count, setCount] = (0, _react.useState)(0);
-  return /*#__PURE__*/_react.default.createElement("div", {
+  const isDarkMode = useIsDarkMode();
+  const {
+    foo
+  } = useFoo();
+  (0, _react.useEffect)(() => {// ...
+  }, []);
+
+  const handleClick = () => setCount(count + 1);
+
+  return /*#__PURE__*/_react.default.createElement(_react.default.Fragment, null, /*#__PURE__*/_react.default.createElement("div", {
     __source: {
       fileName: _jsxFileName,
-      lineNumber: 16,
-      columnNumber: 5
-    }
-  }, /*#__PURE__*/_react.default.createElement("p", {
-    __source: {
-      fileName: _jsxFileName,
-      lineNumber: 17,
+      lineNumber: 25,
       columnNumber: 7
     }
-  }, "You clicked ", count, " times"), /*#__PURE__*/_react.default.createElement("button", {
-    onClick: () => setCount(count + 1),
+  }, "Dark mode? ", isDarkMode), /*#__PURE__*/_react.default.createElement("div", {
     __source: {
       fileName: _jsxFileName,
-      lineNumber: 18,
+      lineNumber: 26,
       columnNumber: 7
     }
-  }, "Click me"));
+  }, "Count: ", count), /*#__PURE__*/_react.default.createElement("div", {
+    __source: {
+      fileName: _jsxFileName,
+      lineNumber: 27,
+      columnNumber: 7
+    }
+  }, "Foo: ", foo), /*#__PURE__*/_react.default.createElement("button", {
+    onClick: handleClick,
+    __source: {
+      fileName: _jsxFileName,
+      lineNumber: 28,
+      columnNumber: 7
+    }
+  }, "Update count"));
 }
-//# sourceMappingURL=Example.js.map?foo=bar&param=some_value
+
+function useIsDarkMode() {
+  const [isDarkMode] = (0, _react.useState)(false);
+  (0, _react.useEffect)(function useEffectCreate() {// Here is where we may listen to a "theme" event...
+  }, []);
+  return isDarkMode;
+}
+
+function useFoo() {
+  (0, _react.useDebugValue)('foo');
+  return {
+    foo: true
+  };
+}
+//# sourceMappingURL=ComponentWithCustomHook.js.map?foo=bar&param=some_value
