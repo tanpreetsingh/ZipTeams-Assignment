@@ -1,52 +1,74 @@
-<!DOCTYPE html>
+<!doctype html>
 <html>
   <head>
-    <meta charset="utf-8">
-    <title>Component Stacks</title>
+    <meta charset="utf8">
+    <title>React DevTools</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
     <style>
-      html, body {
-        margin: 20px;
+      #target {
+        flex: 1;
+        border: none;
       }
-      pre {
-        background: #eee;
-        border: 1px solid #ccc;
-        padding: 2px;
+      #devtools {
+        height: 400px;
+        max-height: 50%;
+        overflow: hidden;
+        z-index: 10000001;
+      }
+      body {
+        display: flex;
+        flex-direction: column;
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        margin: 0;
+        padding: 0;
+        font-family: -apple-system, BlinkMacSystemFont, Segoe UI, Helvetica, Arial,
+          sans-serif, Apple Color Emoji, Segoe UI Emoji, Segoe UI Symbol;
+        font-size: 12px;
+        line-height: 1.5;
+      }
+      .optionsRow {
+        width: 100%;
+        display: flex;
+        padding: 0.25rem;
+        background: aliceblue;
+        border-bottom: 1px solid lightblue;
+        box-sizing: border-box;
+      }
+      .optionsRowSpacer {
+        flex: 1;
       }
     </style>
   </head>
   <body>
-    <div id="container">
-      <p>
-        To install React, follow the instructions on
-        <a href="https://github.com/facebook/react/">GitHub</a>.
-      </p>
-      <p>
-        If you can see this, React is <strong>not</strong> working right.
-        If you checked out the source from GitHub make sure to run <code>npm run build</code>.
-      </p>
+    <div class="optionsRow">
+      <button id="mountButton">Unmount test app</button>
+      <div class="optionsRowSpacer">&nbsp;</div>
+      <span>
+        <a href="/multi.html">multi DevTools</a>
+        |
+        <a href="/e2e.html">e2e tests</a>
+        |
+        <a href="/e2e-regression.html">e2e regression tests</a>
+        |
+        <a href="/perf-regression.html">perf regression tests</a>
+      </span>
     </div>
-    <script src="../../build/oss-experimental/react/umd/react.production.min.js"></script>
-    <script src="../../build/oss-experimental/react-dom/umd/react-dom.production.min.js"></script>
-    <script src="./Components.js"></script>
-    <script src="./BabelClasses-compiled.js"></script>
-    <script src="./Example.js"></script>
-    <script>
-      const container = document.getElementById("container");
-      ReactDOM.render(React.createElement(Example), container);
-    </script>
-    <h3>The above stack should look something like this:</h3>
-    <pre>
-    at Lazy
-    at Component (/stacks/Component.js:7:1)
-    at div
-    at Suspense
-    at BabelClassWithFields (/stacks/BabelClasses-compiled.js:31:31)
-    at BabelClass (/stacks/BabelClass-compiled.js:13:29)
-    at FrozenClass (/stacks/Components.js:22:1)
-    at NativeClass (/stacks/Component.js:16:1)
-    at SuspenseList
-    at Custom Name (/stacks/Component.js:11:1)
-    at ErrorBoundary (/stacks/Example.js:5:1)
-    at Example (/stacks/Example.js:32:1)</pre>
+
+    <!-- React test app (shells/dev/app) is injected here -->
+    <!-- DevTools backend (shells/dev/src) is injected here -->
+    <!-- global "hook" is defined on the iframe's contentWindow -->
+    <iframe id="target"></iframe>
+
+    <!-- DevTools frontend UI (shells/dev/src) renders here -->
+    <div id="devtools"></div>
+
+    <!-- This script installs the hook, injects the backend, and renders the DevTools UI -->
+    <!-- In DEV mode, this file is served by the Webpack dev server -->
+    <!-- For production builds, it's built by Webpack and uploaded from the local file system -->
+    <script src="dist/app-devtools.js"></script>
   </body>
 </html>
