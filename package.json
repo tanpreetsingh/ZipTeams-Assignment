@@ -1,7 +1,10 @@
 {
+  "private": true,
+  "name": "react-nesting-example-modern",
   "dependencies": {
-    "prop-types": "^15.7.2",
-    "react": "17.0.0-rc.3",
-    "react-dom": "17.0.0-rc.3"
+    "react": "0.0.0-3d0895557",
+    "react-dom": "0.0.0-3d0895557",
+    "react-redux": "7.2.1",
+    "react-router-dom": "5.2.0"
   }
 }
