@@ -7,381 +7,190 @@
  * @flow
  */
 
-import {PROFILER_EXPORT_VERSION} from 'react-devtools-shared/src/constants';
-import {separateDisplayNameAndHOCs} from 'react-devtools-shared/src/utils';
+import escapeStringRegExp from 'escape-string-regexp';
+import {meta} from '../../hydration';
+import {formatDataForPreview} from '../../utils';
+import isArray from 'react-devtools-shared/src/isArray';
 
-import type {ProfilingDataBackend} from 'react-devtools-shared/src/backend/types';
-import type {
-  ProfilingDataExport,
-  ProfilingDataForRootExport,
-  ProfilingDataForRootFrontend,
-  ProfilingDataFrontend,
-  SnapshotNode,
-} from './types';
-import type {
-  TimelineData,
-  TimelineDataExport,
-} from 'react-devtools-timeline/src/types';
+import type {HooksTree} from 'react-debug-tools/src/ReactDebugHooks';
 
-const commitGradient = [
-  'var(--color-commit-gradient-0)',
-  'var(--color-commit-gradient-1)',
-  'var(--color-commit-gradient-2)',
-  'var(--color-commit-gradient-3)',
-  'var(--color-commit-gradient-4)',
-  'var(--color-commit-gradient-5)',
-  'var(--color-commit-gradient-6)',
-  'var(--color-commit-gradient-7)',
-  'var(--color-commit-gradient-8)',
-  'var(--color-commit-gradient-9)',
-];
+// $FlowFixMe[method-unbinding]
+const hasOwnProperty = Object.prototype.hasOwnProperty;
 
-// Combines info from the Store (frontend) and renderer interfaces (backend) into the format required by the Profiler UI.
-// This format can then be quickly exported (and re-imported).
-export function prepareProfilingDataFrontendFromBackendAndStore(
-  dataBackends: Array<ProfilingDataBackend>,
-  operationsByRootID: Map<number, Array<Array<number>>>,
-  snapshotsByRootID: Map<number, Map<number, SnapshotNode>>,
-): ProfilingDataFrontend {
-  const dataForRoots: Map<number, ProfilingDataForRootFrontend> = new Map();
-
-  const timelineDataArray = [];
-
-  dataBackends.forEach(dataBackend => {
-    const {timelineData} = dataBackend;
-    if (timelineData != null) {
-      const {
-        batchUIDToMeasuresKeyValueArray,
-        internalModuleSourceToRanges,
-        laneToLabelKeyValueArray,
-        laneToReactMeasureKeyValueArray,
-        ...rest
-      } = timelineData;
-
-      timelineDataArray.push({
-        ...rest,
-
-        // Most of the data is safe to parse as-is,
-        // but we need to convert the nested Arrays back to Maps.
-        batchUIDToMeasuresMap: new Map(batchUIDToMeasuresKeyValueArray),
-        internalModuleSourceToRanges: new Map(internalModuleSourceToRanges),
-        laneToLabelMap: new Map(laneToLabelKeyValueArray),
-        laneToReactMeasureMap: new Map(laneToReactMeasureKeyValueArray),
-      });
+export function alphaSortEntries(
+  entryA: [string, mixed],
+  entryB: [string, mixed],
+): number {
+  const a = entryA[0];
+  const b = entryB[0];
+  if (String(+a) === a) {
+    if (String(+b) !== b) {
+      return -1;
     }
-
-    dataBackend.dataForRoots.forEach(
-      ({commitData, displayName, initialTreeBaseDurations, rootID}) => {
-        const operations = operationsByRootID.get(rootID);
-        if (operations == null) {
-          throw Error(
-            `Could not find profiling operations for root "${rootID}"`,
-          );
-        }
-
-        const snapshots = snapshotsByRootID.get(rootID);
-        if (snapshots == null) {
-          throw Error(
-            `Could not find profiling snapshots for root "${rootID}"`,
-          );
-        }
-
-        // Do not filter empty commits from the profiler data!
-        // Hiding "empty" commits might cause confusion too.
-        // A commit *did happen* even if none of the components the Profiler is showing were involved.
-        const convertedCommitData = commitData.map(
-          (commitDataBackend, commitIndex) => ({
-            changeDescriptions:
-              commitDataBackend.changeDescriptions != null
-                ? new Map(commitDataBackend.changeDescriptions)
-                : null,
-            duration: commitDataBackend.duration,
-            effectDuration: commitDataBackend.effectDuration,
-            fiberActualDurations: new Map(
-              commitDataBackend.fiberActualDurations,
-            ),
-            fiberSelfDurations: new Map(commitDataBackend.fiberSelfDurations),
-            passiveEffectDuration: commitDataBackend.passiveEffectDuration,
-            priorityLevel: commitDataBackend.priorityLevel,
-            timestamp: commitDataBackend.timestamp,
-            updaters:
-              commitDataBackend.updaters !== null
-                ? commitDataBackend.updaters.map(serializedElement => {
-                    const [
-                      serializedElementDisplayName,
-                      serializedElementHocDisplayNames,
-                    ] = separateDisplayNameAndHOCs(
-                      serializedElement.displayName,
-                      serializedElement.type,
-                    );
-                    return {
-                      ...serializedElement,
-                      displayName: serializedElementDisplayName,
-                      hocDisplayNames: serializedElementHocDisplayNames,
-                    };
-                  })
-                : null,
-          }),
-        );
-
-        dataForRoots.set(rootID, {
-          commitData: convertedCommitData,
-          displayName,
-          initialTreeBaseDurations: new Map(initialTreeBaseDurations),
-          operations,
-          rootID,
-          snapshots,
-        });
-      },
-    );
-  });
-
-  return {dataForRoots, imported: false, timelineData: timelineDataArray};
+    return +a < +b ? -1 : 1;
+  }
+  return a < b ? -1 : 1;
 }
 
-// Converts a Profiling data export into the format required by the Store.
-export function prepareProfilingDataFrontendFromExport(
-  profilingDataExport: ProfilingDataExport,
-): ProfilingDataFrontend {
-  const {version} = profilingDataExport;
-
-  if (version !== PROFILER_EXPORT_VERSION) {
-    throw Error(
-      `Unsupported profile export version "${version}". Supported version is "${PROFILER_EXPORT_VERSION}".`,
-    );
+export function createRegExp(string: string): RegExp {
+  // Allow /regex/ syntax with optional last /
+  if (string[0] === '/') {
+    // Cut off first slash
+    string = string.slice(1);
+    // Cut off last slash, but only if it's there
+    if (string[string.length - 1] === '/') {
+      string = string.slice(0, string.length - 1);
+    }
+    try {
+      return new RegExp(string, 'i');
+    } catch (err) {
+      // Bad regex. Make it not match anything.
+      // TODO: maybe warn in console?
+      return new RegExp('.^');
+    }
   }
 
-  const timelineData: Array<TimelineData> = profilingDataExport.timelineData
-    ? profilingDataExport.timelineData.map(
-        ({
-          batchUIDToMeasuresKeyValueArray,
-          componentMeasures,
-          duration,
-          flamechart,
-          internalModuleSourceToRanges,
-          laneToLabelKeyValueArray,
-          laneToReactMeasureKeyValueArray,
-          nativeEvents,
-          networkMeasures,
-          otherUserTimingMarks,
-          reactVersion,
-          schedulingEvents,
-          snapshots,
-          snapshotHeight,
-          startTime,
-          suspenseEvents,
-          thrownErrors,
-        }) => ({
-          // Most of the data is safe to parse as-is,
-          // but we need to convert the nested Arrays back to Maps.
-          batchUIDToMeasuresMap: new Map(batchUIDToMeasuresKeyValueArray),
-          componentMeasures,
-          duration,
-          flamechart,
-          internalModuleSourceToRanges: new Map(internalModuleSourceToRanges),
-          laneToLabelMap: new Map(laneToLabelKeyValueArray),
-          laneToReactMeasureMap: new Map(laneToReactMeasureKeyValueArray),
-          nativeEvents,
-          networkMeasures,
-          otherUserTimingMarks,
-          reactVersion,
-          schedulingEvents,
-          snapshots,
-          snapshotHeight,
-          startTime,
-          suspenseEvents,
-          thrownErrors,
-        }),
-      )
-    : [];
+  function isLetter(char: string) {
+    return char.toLowerCase() !== char.toUpperCase();
+  }
 
-  const dataForRoots: Map<number, ProfilingDataForRootFrontend> = new Map();
-  profilingDataExport.dataForRoots.forEach(
-    ({
-      commitData,
-      displayName,
-      initialTreeBaseDurations,
-      operations,
-      rootID,
-      snapshots,
-    }) => {
-      dataForRoots.set(rootID, {
-        commitData: commitData.map(
-          ({
-            changeDescriptions,
-            duration,
-            effectDuration,
-            fiberActualDurations,
-            fiberSelfDurations,
-            passiveEffectDuration,
-            priorityLevel,
-            timestamp,
-            updaters,
-          }) => ({
-            changeDescriptions:
-              changeDescriptions != null ? new Map(changeDescriptions) : null,
-            duration,
-            effectDuration,
-            fiberActualDurations: new Map(fiberActualDurations),
-            fiberSelfDurations: new Map(fiberSelfDurations),
-            passiveEffectDuration,
-            priorityLevel,
-            timestamp,
-            updaters,
-          }),
-        ),
-        displayName,
-        initialTreeBaseDurations: new Map(initialTreeBaseDurations),
-        operations,
-        rootID,
-        snapshots: new Map(snapshots),
-      });
-    },
+  function matchAnyCase(char: string) {
+    if (!isLetter(char)) {
+      // Don't mess with special characters like [.
+      return char;
+    }
+    return '[' + char.toLowerCase() + char.toUpperCase() + ']';
+  }
+
+  // 'item' should match 'Item' and 'ListItem', but not 'InviteMom'.
+  // To do this, we'll slice off 'tem' and check first letter separately.
+  const escaped = escapeStringRegExp(string);
+  const firstChar = escaped[0];
+  let restRegex = '';
+  // For 'item' input, restRegex becomes '[tT][eE][mM]'
+  // We can't simply make it case-insensitive because first letter case matters.
+  for (let i = 1; i < escaped.length; i++) {
+    restRegex += matchAnyCase(escaped[i]);
+  }
+
+  if (!isLetter(firstChar)) {
+    // We can't put a non-character like [ in a group
+    // so we fall back to the simple case.
+    return new RegExp(firstChar + restRegex);
+  }
+
+  // Construct a smarter regex.
+  return new RegExp(
+    // For example:
+    // (^[iI]|I)[tT][eE][mM]
+    // Matches:
+    // 'Item'
+    // 'ListItem'
+    // but not 'InviteMom'
+    '(^' +
+      matchAnyCase(firstChar) +
+      '|' +
+      firstChar.toUpperCase() +
+      ')' +
+      restRegex,
   );
-
-  return {
-    dataForRoots,
-    imported: true,
-    timelineData,
-  };
 }
 
-// Converts a Store Profiling data into a format that can be safely (JSON) serialized for export.
-export function prepareProfilingDataExport(
-  profilingDataFrontend: ProfilingDataFrontend,
-): ProfilingDataExport {
-  const timelineData: Array<TimelineDataExport> =
-    profilingDataFrontend.timelineData.map(
-      ({
-        batchUIDToMeasuresMap,
-        componentMeasures,
-        duration,
-        flamechart,
-        internalModuleSourceToRanges,
-        laneToLabelMap,
-        laneToReactMeasureMap,
-        nativeEvents,
-        networkMeasures,
-        otherUserTimingMarks,
-        reactVersion,
-        schedulingEvents,
-        snapshots,
-        snapshotHeight,
-        startTime,
-        suspenseEvents,
-        thrownErrors,
-      }) => ({
-        // Most of the data is safe to serialize as-is,
-        // but we need to convert the Maps to nested Arrays.
-        batchUIDToMeasuresKeyValueArray: Array.from(
-          batchUIDToMeasuresMap.entries(),
-        ),
-        componentMeasures: componentMeasures,
-        duration,
-        flamechart,
-        internalModuleSourceToRanges: Array.from(
-          internalModuleSourceToRanges.entries(),
-        ),
-        laneToLabelKeyValueArray: Array.from(laneToLabelMap.entries()),
-        laneToReactMeasureKeyValueArray: Array.from(
-          laneToReactMeasureMap.entries(),
-        ),
-        nativeEvents,
-        networkMeasures,
-        otherUserTimingMarks,
-        reactVersion,
-        schedulingEvents,
-        snapshots,
-        snapshotHeight,
-        startTime,
-        suspenseEvents,
-        thrownErrors,
-      }),
-    );
-
-  const dataForRoots: Array<ProfilingDataForRootExport> = [];
-  profilingDataFrontend.dataForRoots.forEach(
-    ({
-      commitData,
-      displayName,
-      initialTreeBaseDurations,
-      operations,
-      rootID,
-      snapshots,
-    }) => {
-      dataForRoots.push({
-        commitData: commitData.map(
-          ({
-            changeDescriptions,
-            duration,
-            effectDuration,
-            fiberActualDurations,
-            fiberSelfDurations,
-            passiveEffectDuration,
-            priorityLevel,
-            timestamp,
-            updaters,
-          }) => ({
-            changeDescriptions:
-              changeDescriptions != null
-                ? Array.from(changeDescriptions.entries())
-                : null,
-            duration,
-            effectDuration,
-            fiberActualDurations: Array.from(fiberActualDurations.entries()),
-            fiberSelfDurations: Array.from(fiberSelfDurations.entries()),
-            passiveEffectDuration,
-            priorityLevel,
-            timestamp,
-            updaters,
-          }),
-        ),
-        displayName,
-        initialTreeBaseDurations: Array.from(
-          initialTreeBaseDurations.entries(),
-        ),
-        operations,
-        rootID,
-        snapshots: Array.from(snapshots.entries()),
-      });
-    },
-  );
-
-  return {
-    version: PROFILER_EXPORT_VERSION,
-    dataForRoots,
-    timelineData,
-  };
-}
-
-export const getGradientColor = (value: number): string => {
-  const maxIndex = commitGradient.length - 1;
-  let index;
-  if (Number.isNaN(value)) {
-    index = 0;
-  } else if (!Number.isFinite(value)) {
-    index = maxIndex;
+export function getMetaValueLabel(data: Object): string | null {
+  if (hasOwnProperty.call(data, meta.preview_long)) {
+    return data[meta.preview_long];
   } else {
-    index = Math.max(0, Math.min(maxIndex, value)) * maxIndex;
+    return formatDataForPreview(data, true);
   }
-  return commitGradient[Math.round(index)];
-};
+}
 
-export const formatDuration = (duration: number): number | string =>
-  Math.round(duration * 10) / 10 || '<0.1';
-export const formatPercentage = (percentage: number): number =>
-  Math.round(percentage * 100);
-export const formatTime = (timestamp: number): number =>
-  Math.round(Math.round(timestamp) / 100) / 10;
+function sanitize(data: Object): void {
+  for (const key in data) {
+    const value = data[key];
 
-export const scale =
-  (
-    minValue: number,
-    maxValue: number,
-    minRange: number,
-    maxRange: number,
-  ): ((value: number, fallbackValue: number) => number) =>
-  (value: number, fallbackValue: number) =>
-    maxValue - minValue === 0
-      ? fallbackValue
-      : ((value - minValue) / (maxValue - minValue)) * (maxRange - minRange);
+    if (value && value[meta.type]) {
+      data[key] = getMetaValueLabel(value);
+    } else if (value != null) {
+      if (isArray(value)) {
+        sanitize(value);
+      } else if (typeof value === 'object') {
+        sanitize(value);
+      }
+    }
+  }
+}
+
+export function serializeDataForCopy(props: Object): string {
+  const cloned = Object.assign({}, props);
+
+  sanitize(cloned);
+
+  try {
+    return JSON.stringify(cloned, null, 2);
+  } catch (error) {
+    return '';
+  }
+}
+
+export function serializeHooksForCopy(hooks: HooksTree | null): string {
+  // $FlowFixMe[not-an-object] "HooksTree is not an object"
+  const cloned = Object.assign(([]: Array<any>), hooks);
+
+  const queue = [...cloned];
+
+  while (queue.length > 0) {
+    const current = queue.pop();
+
+    // These aren't meaningful
+    delete current.id;
+    delete current.isStateEditable;
+
+    if (current.subHooks.length > 0) {
+      queue.push(...current.subHooks);
+    }
+  }
+
+  sanitize(cloned);
+
+  try {
+    return JSON.stringify(cloned, null, 2);
+  } catch (error) {
+    return '';
+  }
+}
+
+// Keeping this in memory seems to be enough to enable the browser to download larger profiles.
+// Without this, we would see a "Download failed: network error" failure.
+let downloadUrl = null;
+
+export function downloadFile(
+  element: HTMLAnchorElement,
+  filename: string,
+  text: string,
+): void {
+  const blob = new Blob([text], {type: 'text/plain;charset=utf-8'});
+
+  if (downloadUrl !== null) {
+    URL.revokeObjectURL(downloadUrl);
+  }
+
+  downloadUrl = URL.createObjectURL(blob);
+
+  element.setAttribute('href', downloadUrl);
+  element.setAttribute('download', filename);
+
+  element.click();
+}
+
+export function truncateText(text: string, maxLength: number): string {
+  const {length} = text;
+  if (length > maxLength) {
+    return (
+      text.slice(0, Math.floor(maxLength / 2)) +
+      '…' +
+      text.slice(length - Math.ceil(maxLength / 2) - 1)
+    );
+  } else {
+    return text;
+  }
+}

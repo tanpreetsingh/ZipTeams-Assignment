@@ -7,132 +7,201 @@
  * @flow
  */
 
-import type {Wakeable} from 'shared/ReactTypes';
-import type {GitHubIssue} from './githubAPI';
+import type {ReactContext, Thenable} from 'shared/ReactTypes';
 
-import {unstable_getCacheForType as getCacheForType} from 'react';
-import {searchGitHubIssues} from './githubAPI';
+import * as React from 'react';
+import {createContext} from 'react';
 
-const API_TIMEOUT = 3000;
+// TODO (cache) Remove this cache; it is outdated and will not work with newer APIs like startTransition.
+
+// Cache implementation was forked from the React repo:
+// https://github.com/facebook/react/blob/main/packages/react-cache/src/ReactCache.js
+//
+// This cache is simpler than react-cache in that:
+// 1. Individual items don't need to be invalidated.
+//    Profiling data is invalidated as a whole.
+// 2. We didn't need the added overhead of an LRU cache.
+//    The size of this cache is bounded by how many renders were profiled,
+//    and it will be fully reset between profiling sessions.
+
+export type {Thenable};
+
+interface Suspender {
+  then(resolve: () => mixed, reject: () => mixed): mixed;
+}
+
+type PendingResult = {
+  status: 0,
+  value: Suspender,
+};
+
+type ResolvedResult<Value> = {
+  status: 1,
+  value: Value,
+};
+
+type RejectedResult = {
+  status: 2,
+  value: mixed,
+};
+
+type Result<Value> = PendingResult | ResolvedResult<Value> | RejectedResult;
+
+export type Resource<Input, Key, Value> = {
+  clear(): void,
+  invalidate(Key): void,
+  read(Input): Value,
+  preload(Input): void,
+  write(Key, Value): void,
+  ...
+};
 
 const Pending = 0;
 const Resolved = 1;
 const Rejected = 2;
 
-type PendingRecord = {
-  status: 0,
-  value: Wakeable,
-};
+const ReactCurrentDispatcher = (React: any)
+  .__SECRET_INTERNALS_DO_NOT_USE_OR_YOU_WILL_BE_FIRED.ReactCurrentDispatcher;
 
-type ResolvedRecord<T> = {
-  status: 1,
-  value: T,
-};
-
-type RejectedRecord = {
-  status: 2,
-  value: null,
-};
-
-type Record<T> = PendingRecord | ResolvedRecord<T> | RejectedRecord;
-
-function readRecord<T>(record: Record<T>): ResolvedRecord<T> | RejectedRecord {
-  if (record.status === Resolved) {
-    // This is just a type refinement.
-    return record;
-  } else if (record.status === Rejected) {
-    // This is just a type refinement.
-    return record;
-  } else {
-    throw record.value;
+function readContext(Context: ReactContext<null>) {
+  const dispatcher = ReactCurrentDispatcher.current;
+  if (dispatcher === null) {
+    throw new Error(
+      'react-cache: read and preload may only be called from within a ' +
+        "component's render. They are not supported in event handlers or " +
+        'lifecycle methods.',
+    );
   }
+  return dispatcher.readContext(Context);
 }
 
-type GitHubIssueMap = Map<string, Record<GitHubIssue>>;
+const CacheContext = createContext(null);
 
-function createMap(): GitHubIssueMap {
-  return new Map();
+type Config = {useWeakMap?: boolean, ...};
+
+const entries: Map<
+  Resource<any, any, any>,
+  Map<any, any> | WeakMap<any, any>,
+> = new Map();
+const resourceConfigs: Map<Resource<any, any, any>, Config> = new Map();
+
+function getEntriesForResource(
+  resource: any,
+): Map<any, any> | WeakMap<any, any> {
+  let entriesForResource: Map<any, any> | WeakMap<any, any> = ((entries.get(
+    resource,
+  ): any): Map<any, any>);
+  if (entriesForResource === undefined) {
+    const config = resourceConfigs.get(resource);
+    entriesForResource =
+      config !== undefined && config.useWeakMap ? new WeakMap() : new Map();
+    entries.set(resource, entriesForResource);
+  }
+  return entriesForResource;
 }
 
-function getRecordMap(): Map<string, Record<GitHubIssue>> {
-  return getCacheForType(createMap);
-}
-
-export function findGitHubIssue(errorMessage: string): GitHubIssue | null {
-  errorMessage = normalizeErrorMessage(errorMessage);
-
-  const map = getRecordMap();
-  let record = map.get(errorMessage);
-
-  if (!record) {
-    const callbacks = new Set<() => mixed>();
-    const wakeable: Wakeable = {
-      then(callback: () => mixed) {
-        callbacks.add(callback);
+function accessResult<Input, Key, Value>(
+  resource: any,
+  fetch: Input => Thenable<Value>,
+  input: Input,
+  key: Key,
+): Result<Value> {
+  const entriesForResource = getEntriesForResource(resource);
+  const entry = entriesForResource.get(key);
+  if (entry === undefined) {
+    const thenable = fetch(input);
+    thenable.then(
+      value => {
+        if (newResult.status === Pending) {
+          const resolvedResult: ResolvedResult<Value> = (newResult: any);
+          resolvedResult.status = Resolved;
+          resolvedResult.value = value;
+        }
       },
-
-      // Optional property used by Timeline:
-      displayName: `Searching GitHub issues for error "${errorMessage}"`,
-    };
-    const wake = () => {
-      // This assumes they won't throw.
-      callbacks.forEach(callback => callback());
-      callbacks.clear();
-    };
-    const newRecord: Record<GitHubIssue> = (record = {
+      error => {
+        if (newResult.status === Pending) {
+          const rejectedResult: RejectedResult = (newResult: any);
+          rejectedResult.status = Rejected;
+          rejectedResult.value = error;
+        }
+      },
+    );
+    const newResult: PendingResult = {
       status: Pending,
-      value: wakeable,
-    });
-
-    let didTimeout = false;
-
-    searchGitHubIssues(errorMessage)
-      .then(maybeItem => {
-        if (didTimeout) {
-          return;
-        }
-
-        if (maybeItem) {
-          const resolvedRecord =
-            ((newRecord: any): ResolvedRecord<GitHubIssue>);
-          resolvedRecord.status = Resolved;
-          resolvedRecord.value = maybeItem;
-        } else {
-          const notFoundRecord = ((newRecord: any): RejectedRecord);
-          notFoundRecord.status = Rejected;
-          notFoundRecord.value = null;
-        }
-
-        wake();
-      })
-      .catch(error => {
-        const thrownRecord = ((newRecord: any): RejectedRecord);
-        thrownRecord.status = Rejected;
-        thrownRecord.value = null;
-
-        wake();
-      });
-
-    // Only wait a little while for GitHub results before showing a fallback.
-    setTimeout(() => {
-      didTimeout = true;
-
-      const timedoutRecord = ((newRecord: any): RejectedRecord);
-      timedoutRecord.status = Rejected;
-      timedoutRecord.value = null;
-
-      wake();
-    }, API_TIMEOUT);
-
-    map.set(errorMessage, record);
+      value: thenable,
+    };
+    entriesForResource.set(key, newResult);
+    return newResult;
+  } else {
+    return entry;
   }
-
-  const response = readRecord(record).value;
-  return response;
 }
 
-function normalizeErrorMessage(errorMessage: string): string {
-  // Remove Fiber IDs from error message (as those will be unique).
-  errorMessage = errorMessage.replace(/"[0-9]+"/, '');
-  return errorMessage;
+export function createResource<Input, Key, Value>(
+  fetch: Input => Thenable<Value>,
+  hashInput: Input => Key,
+  config?: Config = {},
+): Resource<Input, Key, Value> {
+  const resource = {
+    clear(): void {
+      entries.delete(resource);
+    },
+
+    invalidate(key: Key): void {
+      const entriesForResource = getEntriesForResource(resource);
+      entriesForResource.delete(key);
+    },
+
+    read(input: Input): Value {
+      // Prevent access outside of render.
+      readContext(CacheContext);
+
+      const key = hashInput(input);
+      const result: Result<Value> = accessResult(resource, fetch, input, key);
+      switch (result.status) {
+        case Pending: {
+          const suspender = result.value;
+          throw suspender;
+        }
+        case Resolved: {
+          const value = result.value;
+          return value;
+        }
+        case Rejected: {
+          const error = result.value;
+          throw error;
+        }
+        default:
+          // Should be unreachable
+          return (undefined: any);
+      }
+    },
+
+    preload(input: Input): void {
+      // Prevent access outside of render.
+      readContext(CacheContext);
+
+      const key = hashInput(input);
+      accessResult(resource, fetch, input, key);
+    },
+
+    write(key: Key, value: Value): void {
+      const entriesForResource = getEntriesForResource(resource);
+
+      const resolvedResult: ResolvedResult<Value> = {
+        status: Resolved,
+        value,
+      };
+
+      entriesForResource.set(key, resolvedResult);
+    },
+  };
+
+  resourceConfigs.set(resource, config);
+
+  return resource;
+}
+
+export function invalidateResources(): void {
+  entries.clear();
 }
