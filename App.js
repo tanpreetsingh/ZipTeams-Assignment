@@ -1,52 +1,38 @@
-import React from 'react';
-import {useState, Suspense} from 'react';
-import {BrowserRouter, Switch, Route} from 'react-router-dom';
+import React, {useContext, useState, Suspense} from 'react';
 
-import HomePage from './HomePage';
-import AboutPage from './AboutPage';
-import ThemeContext from './shared/ThemeContext';
+import Chrome from './Chrome';
+import Page from './Page';
+import Page2 from './Page2';
+import Theme from './Theme';
 
-export default function App() {
-  const [theme, setTheme] = useState('slategrey');
+function LoadingIndicator() {
+  let theme = useContext(Theme);
+  return <div className={theme + '-loading'}>Loading...</div>;
+}
 
-  function handleToggleClick() {
-    if (theme === 'slategrey') {
-      setTheme('hotpink');
-    } else {
-      setTheme('slategrey');
-    }
-  }
-
+function Content() {
+  let [CurrentPage, switchPage] = useState(() => Page);
   return (
-    <BrowserRouter>
-      <ThemeContext.Provider value={theme}>
-        <div style={{fontFamily: 'sans-serif'}}>
-          <div
-            style={{
-              margin: 20,
-              padding: 20,
-              border: '1px solid black',
-              minHeight: 300,
-            }}>
-            <button onClick={handleToggleClick}>Toggle Theme Context</button>
-            <br />
-            <Suspense fallback={<Spinner />}>
-              <Switch>
-                <Route path="/about">
-                  <AboutPage />
-                </Route>
-                <Route path="/">
-                  <HomePage />
-                </Route>
-              </Switch>
-            </Suspense>
-          </div>
-        </div>
-      </ThemeContext.Provider>
-    </BrowserRouter>
+    <div>
+      <h1>Hello World</h1>
+      <a className="link" onClick={() => switchPage(() => Page)}>
+        Page 1
+      </a>
+      {' | '}
+      <a className="link" onClick={() => switchPage(() => Page2)}>
+        Page 2
+      </a>
+      <Suspense fallback={<LoadingIndicator />}>
+        <CurrentPage />
+      </Suspense>
+    </div>
   );
 }
 
-function Spinner() {
-  return null;
+export default function App({assets}) {
+  return (
+    <Chrome title="Hello World" assets={assets}>
+      <Content />
+    </Chrome>
+  );
 }
