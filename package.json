@@ -1,32 +1,48 @@
 {
-  "name": "jest-react",
-  "version": "0.14.0",
-  "description": "Jest matchers and utilities for testing React components.",
-  "main": "index.js",
-  "repository": {
-    "type": "git",
-    "url": "https://github.com/facebook/react.git",
-    "directory": "packages/jest-react"
-  },
+  "name": "react",
+  "description": "React is a JavaScript library for building user interfaces.",
   "keywords": [
-    "react",
-    "jest",
-    "react-testing"
+    "react"
   ],
-  "license": "MIT",
-  "bugs": {
-    "url": "https://github.com/facebook/react/issues"
-  },
+  "version": "18.2.0",
   "homepage": "https://reactjs.org/",
-  "peerDependencies": {
-    "jest": "^23.0.1 || ^24.0.0 || ^25.1.0 || ^26.0.0 || ^27.0.0 || ^28.0.0 || ^29.0.0",
-    "react": "^18.2.0",
-    "react-test-renderer": "^18.2.0"
-  },
+  "bugs": "https://github.com/facebook/react/issues",
+  "license": "MIT",
   "files": [
     "LICENSE",
     "README.md",
     "index.js",
-    "cjs/"
-  ]
+    "cjs/",
+    "umd/",
+    "jsx-runtime.js",
+    "jsx-dev-runtime.js",
+    "react.shared-subset.js"
+  ],
+  "main": "index.js",
+  "exports": {
+    ".": {
+      "react-server": "./react.shared-subset.js",
+      "default": "./index.js"
+    },
+    "./package.json": "./package.json",
+    "./jsx-runtime": "./jsx-runtime.js",
+    "./jsx-dev-runtime": "./jsx-dev-runtime.js",
+    "./src/*": "./src/*"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/facebook/react.git",
+    "directory": "packages/react"
+  },
+  "engines": {
+    "node": ">=0.10.0"
+  },
+  "dependencies": {
+    "loose-envify": "^1.1.0"
+  },
+  "browserify": {
+    "transform": [
+      "loose-envify"
+    ]
+  }
 }
