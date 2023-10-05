@@ -1,7 +1,58 @@
-contact_links:
-    - name: 📃 Documentation Issue
-      url: https://github.com/reactjs/reactjs.org/issues/new
-      about: This issue tracker is not for documentation issues. Please file documentation issues here.
-    - name: 🤔 Questions and Help
-      url: https://reactjs.org/community/support.html
-      about: This issue tracker is not for support questions. Please refer to the React community's help and discussion forums.
+# Javascript Node CircleCI 2.0 configuration file
+#
+# Check https://circleci.com/docs/2.0/language-javascript/ for more details
+#
+version: 2
+jobs:
+  build:
+    docker:
+      # specify the version you desire here
+      - image: circleci/node:10.12.0
+
+      # Specify service dependencies here if necessary
+      # CircleCI maintains a library of pre-built images
+      # documented at https://circleci.com/docs/2.0/circleci-images/
+      # - image: circleci/mongo:3.4.4
+
+    working_directory: ~/repo
+
+    steps:
+      - checkout
+
+      # Download and cache dependencies
+      - restore_cache:
+          name: Restore node_modules cache
+          keys:
+            - v1-node-{{ arch }}-{{ .Branch }}-{{ checksum "yarn.lock" }}
+            - v1-node-{{ arch }}-{{ .Branch }}-
+            - v1-node-{{ arch }}-
+
+      - run:
+          name: Nodejs Version
+          command: node --version
+
+      - run:
+          name: Install Packages
+          command: yarn install --frozen-lockfile
+
+      - save_cache:
+          name: Save node_modules cache
+          key: v1-node-{{ arch }}-{{ .Branch }}-{{ checksum "yarn.lock" }}
+          paths:
+            - node_modules
+
+      - run:
+          name: Check formatting
+          command: yarn prettier:ci
+
+      - run:
+          name: Check lint
+          command: yarn lint:ci
+
+      - run:
+          name: Check Flow
+          command: yarn flow
+
+      - run:
+          name: Test Packages
+          command: yarn test

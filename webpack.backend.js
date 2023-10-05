@@ -1,5 +1,10 @@
+'use strict';
+
 const {resolve} = require('path');
 const Webpack = require('webpack');
+const DevToolsIgnorePlugin = require('devtools-ignore-webpack-plugin');
+
+const {resolveFeatureFlags} = require('react-devtools-shared/buildUtils');
 const {
   DARK_MODE_DIMMED_WARNING_COLOR,
   DARK_MODE_DIMMED_ERROR_COLOR,
@@ -9,8 +14,7 @@ const {
   LIGHT_MODE_DIMMED_LOG_COLOR,
   GITHUB_URL,
   getVersionString,
-} = require('react-devtools-extensions/utils');
-const {resolveFeatureFlags} = require('react-devtools-shared/buildUtils');
+} = require('./utils');
 
 const NODE_ENV = process.env.NODE_ENV;
 if (!NODE_ENV) {
@@ -28,28 +32,26 @@ const builtModulesDir = resolve(
 
 const __DEV__ = NODE_ENV === 'development';
 
-const DEVTOOLS_VERSION = getVersionString();
+const DEVTOOLS_VERSION = getVersionString(process.env.DEVTOOLS_VERSION);
 
-const featureFlagTarget = process.env.FEATURE_FLAG_TARGET || 'core/backend-oss';
+const IS_CHROME = process.env.IS_CHROME === 'true';
+const IS_FIREFOX = process.env.IS_FIREFOX === 'true';
+const IS_EDGE = process.env.IS_EDGE === 'true';
 
-// This targets RN/Hermes.
-process.env.BABEL_CONFIG_ADDITIONAL_TARGETS = JSON.stringify({
-  ie: '11',
-});
+const featureFlagTarget = process.env.FEATURE_FLAG_TARGET || 'extension-oss';
 
 module.exports = {
   mode: __DEV__ ? 'development' : 'production',
-  devtool: __DEV__ ? 'eval-cheap-module-source-map' : 'source-map',
+  devtool: __DEV__ ? 'cheap-module-source-map' : 'nosources-cheap-source-map',
   entry: {
     backend: './src/backend.js',
   },
   output: {
-    path: __dirname + '/dist',
-    filename: '[name].js',
-
-    // This name is important; standalone references it in order to connect.
-    library: 'ReactDevToolsBackend',
-    libraryTarget: 'umd',
+    path: __dirname + '/build',
+    filename: 'react_devtools_backend_compact.js',
+  },
+  node: {
+    global: false,
   },
   resolve: {
     alias: {
@@ -61,20 +63,18 @@ module.exports = {
       scheduler: resolve(builtModulesDir, 'scheduler'),
     },
   },
-  node: {
-    global: false,
+  optimization: {
+    minimize: false,
   },
   plugins: [
     new Webpack.ProvidePlugin({
       process: 'process/browser',
     }),
     new Webpack.DefinePlugin({
-      __DEV__,
-      __EXPERIMENTAL__: true,
-      __EXTENSION__: false,
+      __DEV__: true,
       __PROFILE__: false,
-      __TEST__: NODE_ENV === 'test',
-      'process.env.DEVTOOLS_PACKAGE': `"react-devtools-core"`,
+      __DEV____DEV__: true,
+      'process.env.DEVTOOLS_PACKAGE': `"react-devtools-extensions"`,
       'process.env.DEVTOOLS_VERSION': `"${DEVTOOLS_VERSION}"`,
       'process.env.GITHUB_URL': `"${GITHUB_URL}"`,
       'process.env.DARK_MODE_DIMMED_WARNING_COLOR': `"${DARK_MODE_DIMMED_WARNING_COLOR}"`,
@@ -83,11 +83,20 @@ module.exports = {
       'process.env.LIGHT_MODE_DIMMED_WARNING_COLOR': `"${LIGHT_MODE_DIMMED_WARNING_COLOR}"`,
       'process.env.LIGHT_MODE_DIMMED_ERROR_COLOR': `"${LIGHT_MODE_DIMMED_ERROR_COLOR}"`,
       'process.env.LIGHT_MODE_DIMMED_LOG_COLOR': `"${LIGHT_MODE_DIMMED_LOG_COLOR}"`,
+      'process.env.IS_CHROME': IS_CHROME,
+      'process.env.IS_FIREFOX': IS_FIREFOX,
+      'process.env.IS_EDGE': IS_EDGE,
+    }),
+    new DevToolsIgnorePlugin({
+      shouldIgnorePath: function (path) {
+        if (!__DEV__) {
+          return true;
+        }
+
+        return path.includes('/node_modules/') || path.includes('/webpack/');
+      },
     }),
   ],
-  optimization: {
-    minimize: false,
-  },
   module: {
     rules: [
       {
