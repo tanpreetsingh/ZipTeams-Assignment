@@ -1,25 +1,30 @@
-# Fiber Debugger
+# Fizz Fixtures
 
-This is a debugger handy for visualizing how [Fiber](https://github.com/facebook/react/issues/6170) works internally.
+A set of basic tests for Fizz primarily focused on baseline performance of legacy renderToString and streaming implementations.
 
-**It is only meant to be used by React contributors, and not by React users.**
+## Setup
 
-It is likely that it might get broken at some point. If it's broken, ping [Dan](https://twitter.com/dan_abramov).
+To reference a local build of React, first run `npm run build` at the root
+of the React project. Then:
 
-### Running
+```
+cd fixtures/fizz
+yarn
+yarn start
+```
 
-First, `npm run build` in React root repo folder.
+The `start` command runs a webpack dev server and a server-side rendering server in development mode with hot reloading.
 
-Then `npm install` and `npm start` in this folder.
+**Note: whenever you make changes to React and rebuild it, you need to re-run `yarn` in this folder:**
 
-Open `http://localhost:3000` in Chrome.
+```
+yarn
+```
 
-### Features
+If you want to try the production mode instead run:
 
-* Edit code that uses `ReactNoop` renderer
-* Visualize how relationships between fibers change over time
-* Current tree is displayed in green
+```
+yarn start:prod
+```
 
-![fiber debugger](https://d17oy1vhnax1f7.cloudfront.net/items/3R2W1H2M3a0h3p1l133r/Screen%20Recording%202016-10-21%20at%2020.41.gif?v=e4323e51)
-
-
+This will pre-build all static resources and then start a server-side rendering HTTP server that hosts the React app and service the static resources (without hot reloading).
