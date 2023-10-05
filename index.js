@@ -5,4 +5,6 @@
  * LICENSE file in the root directory of this source tree.
  */
 
-export * from './src/index';
+'use strict';
+
+export * from './src/JestReact';
