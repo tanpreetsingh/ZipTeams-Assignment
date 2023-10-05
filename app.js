@@ -1,7 +1,14 @@
-'use strict';
+const {createElement, useLayoutEffect, useState} = React;
+const {createRoot} = ReactDOM;
 
-var React = require('react');
-var ReactDOM = require('react-dom');
-var VectorWidget = require('./VectorWidget');
+function App() {
+  const [isMounted, setIsMounted] = useState(false);
+  useLayoutEffect(() => {
+    setIsMounted(true);
+  }, []);
+  return createElement('div', null, `isMounted? ${isMounted}`);
+}
 
-ReactDOM.render(<VectorWidget />, document.getElementById('container'));
+const container = document.getElementById('container');
+const root = createRoot(container);
+root.render(createElement(App));

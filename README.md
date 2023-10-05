@@ -1,44 +1,15 @@
-# CPU async rendering demo
+# Test fixture for `packages/react-devtools-scheduling-profiler`
 
-## What is this fixture?
+1. First, run the fixture:
+```sh
+# In the root directory
+# Download the latest *experimental* React build
+scripts/release/download-experimental-build.js
 
-This is a demo application based on [Dan Abramov's](https://github.com/gaearon) recent [JSConf Iceland talk](https://reactjs.org/blog/2018/03/01/sneak-peek-beyond-react-16.html) about React.
-
-It depends on a local build of React and enables us to easily test async "time slicing" APIs in a more "real world app" like context.
-
-## Can I use this code in production?
-
-No. The APIs being tested here are unstable and some of them have still not been released to NPM. For now, this fixture is only a test harness.
-
-There are also known bugs and inefficiencies in main so **don't use this fixture for demonstration purposes either yet**. Until they are fixed, this fixture is **not** indicative of React async rendering performance.
-
-## How do I run this fixture?
-
-### From npm version
-
-```
-# 1: Install fixture dependencies
-cd fixtures/unstable-async/time-slicing/
-yarn
-
-# 2: Run the app
-yarn start
+# Run this fixtures
+fixtures/devtools/scheduling-profiler/run.js
 ```
 
-### From React source code
-```shell
-# 1: Build react from source
-cd /path/to/react
-yarn
-yarn build react-dom/index,react/index,react-cache,scheduler --type=NODE
-
-# 2: Install fixture dependencies
-cd fixtures/unstable-async/time-slicing/
-yarn
-
-# 3: Copy React source code over
-yarn copy-source
-
-# 3: Run the app
-yarn start
-```
+2. Then open [localhost:8000/](http://localhost:8000/) and use the Performance tab in Chrome to reload-and-profile.
+3. Now stop profiling and export JSON.
+4. Lastly, open [react-scheduling-profiler.vercel.app](https://react-scheduling-profiler.vercel.app/) and upload the performance JSON data you just recorded.
