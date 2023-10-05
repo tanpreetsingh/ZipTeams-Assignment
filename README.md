@@ -1,30 +1,44 @@
-# Attribute Behavior Fixture
+# CPU async rendering demo
 
-**WIP:** This is an MVP, still needs polish.
+## What is this fixture?
 
-### Known Issues
-- There are currently two errors thrown when the page loads;
-  `SyntaxError: missing ; before statement`
+This is a demo application based on [Dan Abramov's](https://github.com/gaearon) recent [JSConf Iceland talk](https://reactjs.org/blog/2018/03/01/sneak-peek-beyond-react-16.html) about React.
 
-## Instructions
+It depends on a local build of React and enables us to easily test async "time slicing" APIs in a more "real world app" like context.
 
-`yarn build --type=UMD_DEV react/index,react-dom && cd fixtures/attribute-behavior && yarn install && yarn dev`
+## Can I use this code in production?
 
-## Interpretation
+No. The APIs being tested here are unstable and some of them have still not been released to NPM. For now, this fixture is only a test harness.
 
-Each row is an attribute which could be set on some DOM component. Some of
-them are invalid or mis-capitalized or mixed up versions of real ones.
-Each column is a value which can be passed to that attribute.
-Every cell has a box on the left and a box on the right.
-The left box shows the property (or attribute) assigned by the latest stable release of React, and the
-right box shows the property (or attribute) assigned by the locally built version of React.
+There are also known bugs and inefficiencies in main so **don't use this fixture for demonstration purposes either yet**. Until they are fixed, this fixture is **not** indicative of React async rendering performance.
 
-Right now, we use a purple outline to call out cases where the assigned property
-(or attribute) has changed between React 15 and 16.
+## How do I run this fixture?
 
----
+### From npm version
 
+```
+# 1: Install fixture dependencies
+cd fixtures/unstable-async/time-slicing/
+yarn
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+# 2: Run the app
+yarn start
+```
 
-You can find the guide for how to do things in a CRA [here](https://github.com/facebook/create-react-app/blob/main/packages/cra-template/template/README.md).
+### From React source code
+```shell
+# 1: Build react from source
+cd /path/to/react
+yarn
+yarn build react-dom/index,react/index,react-cache,scheduler --type=NODE
+
+# 2: Install fixture dependencies
+cd fixtures/unstable-async/time-slicing/
+yarn
+
+# 3: Copy React source code over
+yarn copy-source
+
+# 3: Run the app
+yarn start
+```
