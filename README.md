@@ -1,30 +1,75 @@
-# SSR Fixtures
+# `eslint-plugin-react-hooks`
 
-A set of test cases for quickly identifying issues with server-side rendering.
+This ESLint plugin enforces the [Rules of Hooks](https://reactjs.org/docs/hooks-rules.html).
 
-## Setup
+It is a part of the [Hooks API](https://reactjs.org/docs/hooks-intro.html) for React.
 
-To reference a local build of React, first run `npm run build` at the root
-of the React project. Then:
+## Installation
 
-```
-cd fixtures/ssr2
-yarn
-yarn start
-```
+**Note: If you're using Create React App, please use `react-scripts` >= 3 instead of adding it directly.**
 
-The `start` command runs a webpack dev server and a server-side rendering server in development mode with hot reloading.
+Assuming you already have ESLint installed, run:
 
-**Note: whenever you make changes to React and rebuild it, you need to re-run `yarn` in this folder:**
+```sh
+# npm
+npm install eslint-plugin-react-hooks --save-dev
 
-```
-yarn
+# yarn
+yarn add eslint-plugin-react-hooks --dev
 ```
 
-If you want to try the production mode instead run:
+Then extend the recommended eslint config:
 
-```
-yarn start:prod
+```js
+{
+  "extends": [
+    // ...
+    "plugin:react-hooks/recommended"
+  ]
+}
 ```
 
-This will pre-build all static resources and then start a server-side rendering HTTP server that hosts the React app and service the static resources (without hot reloading).
+### Custom Configuration
+
+If you want more fine-grained configuration, you can instead add a snippet like this to your ESLint configuration file:
+
+```js
+{
+  "plugins": [
+    // ...
+    "react-hooks"
+  ],
+  "rules": {
+    // ...
+    "react-hooks/rules-of-hooks": "error",
+    "react-hooks/exhaustive-deps": "warn"
+  }
+}
+```
+
+
+## Advanced Configuration
+
+`exhaustive-deps` can be configured to validate dependencies of custom Hooks with the `additionalHooks` option.
+This option accepts a regex to match the names of custom Hooks that have dependencies.
+
+```js
+{
+  "rules": {
+    // ...
+    "react-hooks/exhaustive-deps": ["warn", {
+      "additionalHooks": "(useMyCustomHook|useMyOtherCustomHook)"
+    }]
+  }
+}
+```
+
+We suggest to use this option **very sparingly, if at all**. Generally saying, we recommend most custom Hooks to not use the dependencies argument, and instead provide a higher-level API that is more focused around a specific use case.
+
+## Valid and Invalid Examples
+
+Please refer to the [Rules of Hooks](https://reactjs.org/docs/hooks-rules.html) documentation and the [Hooks FAQ](https://reactjs.org/docs/hooks-faq.html#what-exactly-do-the-lint-rules-enforce) to learn more about this rule.
+
+## License
+
+MIT
