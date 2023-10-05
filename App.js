@@ -1,38 +1,64 @@
-import React, {useContext, useState, Suspense} from 'react';
+/**
+ * Copyright (c) Meta Platforms, Inc. and affiliates.
+ *
+ * This source code is licensed under the MIT license found in the
+ * LICENSE file in the root directory of this source tree.
+ *
+ */
 
-import Chrome from './Chrome';
-import Page from './Page';
-import Page2 from './Page2';
-import Theme from './Theme';
+import {Suspense, lazy} from 'react';
+import {ErrorBoundary} from 'react-error-boundary';
+import Html from './Html';
+import Spinner from './Spinner';
+import Layout from './Layout';
+import NavBar from './NavBar';
 
-function LoadingIndicator() {
-  let theme = useContext(Theme);
-  return <div className={theme + '-loading'}>Loading...</div>;
-}
-
-function Content() {
-  let [CurrentPage, switchPage] = useState(() => Page);
-  return (
-    <div>
-      <h1>Hello World</h1>
-      <a className="link" onClick={() => switchPage(() => Page)}>
-        Page 1
-      </a>
-      {' | '}
-      <a className="link" onClick={() => switchPage(() => Page2)}>
-        Page 2
-      </a>
-      <Suspense fallback={<LoadingIndicator />}>
-        <CurrentPage />
-      </Suspense>
-    </div>
-  );
-}
+const Comments = lazy(() => import('./Comments' /* webpackPrefetch: true */));
+const Sidebar = lazy(() => import('./Sidebar' /* webpackPrefetch: true */));
+const Post = lazy(() => import('./Post' /* webpackPrefetch: true */));
 
 export default function App({assets}) {
   return (
-    <Chrome title="Hello World" assets={assets}>
-      <Content />
-    </Chrome>
+    <Html assets={assets} title="Hello">
+      <Suspense fallback={<Spinner />}>
+        <ErrorBoundary FallbackComponent={Error}>
+          <Content />
+        </ErrorBoundary>
+      </Suspense>
+    </Html>
+  );
+}
+
+function Content() {
+  return (
+    <Layout>
+      <NavBar />
+      <aside className="sidebar">
+        <Suspense fallback={<Spinner />}>
+          <Sidebar />
+        </Suspense>
+      </aside>
+      <article className="post">
+        <Suspense fallback={<Spinner />}>
+          <Post />
+        </Suspense>
+        <section className="comments">
+          <h2>Comments</h2>
+          <Suspense fallback={<Spinner />}>
+            <Comments />
+          </Suspense>
+        </section>
+        <h2>Thanks for reading!</h2>
+      </article>
+    </Layout>
+  );
+}
+
+function Error({error}) {
+  return (
+    <div>
+      <h1>Application Error</h1>
+      <pre style={{whiteSpace: 'pre-wrap'}}>{error.stack}</pre>
+    </div>
   );
 }

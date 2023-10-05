@@ -19,41 +19,28 @@ const express = require('express');
 const compress = require('compression');
 const {readFileSync} = require('fs');
 const path = require('path');
-const renderToString = require('./render-to-string');
-const renderToStream = require('./render-to-stream');
-const renderToBuffer = require('./render-to-buffer');
+const render = require('./render');
 const {JS_BUNDLE_DELAY} = require('./delays');
 
 const PORT = process.env.PORT || 4000;
 const app = express();
+
+app.use((req, res, next) => {
+  if (req.url.endsWith('.js')) {
+    // Artificially delay serving JS
+    // to demonstrate streaming HTML.
+    setTimeout(next, JS_BUNDLE_DELAY);
+  } else {
+    next();
+  }
+});
 
 app.use(compress());
 app.get(
   '/',
   handleErrors(async function (req, res) {
     await waitForWebpack();
-    renderToStream(req.url, res);
-  })
-);
-app.get(
-  '/string',
-  handleErrors(async function (req, res) {
-    await waitForWebpack();
-    renderToString(req.url, res);
-  })
-);
-app.get(
-  '/stream',
-  handleErrors(async function (req, res) {
-    await waitForWebpack();
-    renderToStream(req.url, res);
-  })
-);
-app.get(
-  '/buffer',
-  handleErrors(async function (req, res) {
-    await waitForWebpack();
-    renderToBuffer(req.url, res);
+    render(req.url, res);
   })
 );
 app.use(express.static('build'));
