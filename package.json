@@ -1,10 +1,12 @@
 {
   "private": true,
-  "name": "react-nesting-example-modern",
-  "dependencies": {
-    "react": "0.0.0-3d0895557",
-    "react-dom": "0.0.0-3d0895557",
-    "react-redux": "7.2.1",
-    "react-router-dom": "5.2.0"
+  "name": "brunch-dev-fixture",
+  "devDependencies": {
+    "brunch": "^2.9.1",
+    "javascript-brunch": "^2.0.0"
+  },
+  "scripts": {
+    "build": "rm -rf public && brunch build",
+    "prebuild": "cp -r ../../../../build/oss-experimental/* ./node_modules/"
   }
 }
